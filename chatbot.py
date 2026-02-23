@@ -57,17 +57,24 @@ SYSTEM_PROMPT = """You are an Invoice Assistant for a freelancer running a sole 
 You help analyze invoices and business data by querying a SQLite database.
 
 DATABASE SCHEMA:
-- customers(id, name, nip, email, city, country)
-- invoices(id, number, customer_id, issue_date, due_date, status)
-  status: 'paid' | 'unpaid' | 'overdue'
-- invoice_items(id, invoice_id, description, quantity, unit_price, vat_rate)
+- customers(id, name, nip, email, phone, city, country, created_at)
+- service_categories(id, name, description)
+- invoices(id, number, customer_id, issue_date, due_date, status, payment_date, payment_method, notes)
+  status: 'paid' | 'unpaid' | 'overdue' | 'draft' | 'cancelled'
+  payment_method: 'bank_transfer' | 'credit_card' | 'cash' | 'paypal'
+- invoice_items(id, invoice_id, description, category_id, quantity, unit_price, vat_rate)
   net_amount = quantity * unit_price
   gross_amount = quantity * unit_price * (1 + vat_rate)
+- payments(id, invoice_id, amount, payment_date, payment_method, reference)
+- recurring_templates(id, customer_id, description, amount, frequency, next_invoice_date, is_active)
+  frequency: 'monthly' | 'quarterly' | 'yearly'
 
 SAMPLE DATA:
-- 5 customers: ABC Solutions Ltd, XYZ Tech, John Smith Consulting, DataFlow GmbH, Nordic Analytics
-- 15 invoices from 2024-2025
-- Services: IT Consulting, Data Analysis, ML Model Development, Python Training, Data Engineering
+- 12 customers across Poland, Germany, and Sweden
+- 35 invoices from 2024-2026 with various statuses
+- Services: IT Consulting, Data Analysis, ML Development, Python Training, Cloud Services, API Development, Healthcare Apps
+- Payment tracking with transaction references
+- Recurring invoice templates for retainer clients
 
 RULES:
 - ONLY use SELECT statements. Never INSERT, UPDATE, DELETE or DROP.
@@ -76,12 +83,14 @@ RULES:
 - Only answer invoice/business related questions.
 - Always query the database before answering.
 - Be concise and professional.
+- Format currency values with proper separators.
+- When showing multiple results, use tables or bullet points.
 """
 
 # Page config
 st.set_page_config(
     page_title="Invoice Assistant",
-    page_icon="🧾",
+    page_icon="receipt",
     layout="wide"
 )
 
@@ -91,7 +100,7 @@ with st.sidebar:
     st.caption("AI-powered invoice analytics")
     st.divider()
 
-    st.markdown("**Try asking:**")
+    st.markdown("**Quick Questions:**")
     suggestions = [
         "What is my total revenue?",
         "Which invoices are overdue?",
@@ -99,11 +108,30 @@ with st.sidebar:
         "How many unpaid invoices?",
         "What services did I provide?",
         "Monthly revenue in 2024",
+        "Show payment history",
+        "Top 5 customers by revenue",
+        "Revenue by service category",
+        "Compare 2024 vs 2025 revenue",
     ]
     for s in suggestions:
         if st.button(s, use_container_width=True):
             st.session_state.suggested = s
 
+    st.divider()
+    
+    # Quick Stats in Sidebar
+    st.markdown("**Quick Stats:**")
+    conn_sidebar = sqlite3.connect("invoices.db")
+    cur_sidebar = conn_sidebar.cursor()
+    
+    cur_sidebar.execute("SELECT COUNT(*) FROM customers")
+    st.metric("Total Customers", cur_sidebar.fetchone()[0])
+    
+    cur_sidebar.execute("SELECT COUNT(*) FROM recurring_templates WHERE is_active = 1")
+    st.metric("Active Subscriptions", cur_sidebar.fetchone()[0])
+    
+    conn_sidebar.close()
+    
     st.divider()
     if st.button("Clear chat", use_container_width=True):
         st.session_state.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -113,12 +141,12 @@ with st.sidebar:
     st.caption("Built with GPT-4o · EPAM DIAL · SQLite · Streamlit")
 
 # Metrics row
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3, col4, col5 = st.columns(5)
 
 conn = sqlite3.connect("invoices.db")
 cursor = conn.cursor()
 
-cursor.execute("SELECT COUNT(*) FROM invoices")
+cursor.execute("SELECT COUNT(*) FROM invoices WHERE status != 'cancelled'")
 total = cursor.fetchone()[0]
 
 cursor.execute("SELECT COUNT(*) FROM invoices WHERE status='unpaid' OR status='overdue'")
@@ -134,17 +162,28 @@ revenue = cursor.fetchone()[0] or 0
 
 cursor.execute("SELECT COUNT(DISTINCT customer_id) FROM invoices")
 clients = cursor.fetchone()[0]
+
+# New: Outstanding amount
+cursor.execute("""
+    SELECT ROUND(SUM(quantity * unit_price * (1 + vat_rate)), 2)
+    FROM invoice_items ii
+    JOIN invoices i ON ii.invoice_id = i.id
+    WHERE i.status IN ('unpaid', 'overdue')
+""")
+outstanding = cursor.fetchone()[0] or 0
+
 conn.close()
 
 col1.metric("Total Invoices", total)
-col2.metric("Unpaid / Overdue", unpaid)
-col3.metric("Total Revenue (gross)", f"{revenue:,.0f} PLN")
-col4.metric("Active Clients", clients)
+col2.metric("Unpaid/Overdue", unpaid, delta=f"-{unpaid}" if unpaid > 0 else None, delta_color="inverse")
+col3.metric("Revenue (gross)", f"{revenue:,.0f} PLN")
+col4.metric("Outstanding", f"{outstanding:,.0f} PLN")
+col5.metric("Active Clients", clients)
 
 st.divider()
 
 # Chat
-st.subheader("💬 Chat")
+st.subheader("Chat")
 
 if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "system", "content": SYSTEM_PROMPT}]

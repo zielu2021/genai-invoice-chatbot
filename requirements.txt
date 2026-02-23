@@ -1,0 +1,9 @@
+# Core dependencies
+# sqlite3 is built-in to Python
+
+# Optional: For web interface
+flask>=2.0.0
+# Optional: For AI-powered responses
+openai>=1.0.0
+# Optional: For better CLI experience
+rich>=13.0.0

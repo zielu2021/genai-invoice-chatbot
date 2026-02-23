@@ -1,166 +1,109 @@
 # GenAI Invoice Chatbot
 
-An AI-powered invoice assistant for freelancers. Ask questions about your invoices in natural language - the chatbot queries the database and returns accurate answers without requiring any SQL knowledge.
+I built this chatbot to help me manage invoices for my freelance business. Instead of writing SQL queries manually, I just ask questions in plain English and the AI figures out how to get the data I need.
 
-Built as a graduation project for the Generative AI Foundations for Data Analytics Engineers course.
+## What it does
 
----
+You type a question like "How much does XYZ Tech owe me?" and the chatbot generates the appropriate SQL query, runs it against the database, and gives you a human-readable answer. The whole thing runs locally in your browser using Streamlit.
 
-## Demo
+The AI uses function calling under the hood. It doesn't execute code directly - it tells the application what query to run, the app executes it, and then the AI formats the response. This keeps things safe and predictable.
 
-![Dashboard](screenshots/01_dashboard_metrics.png)
-*Real-time metrics dashboard showing total invoices, unpaid/overdue count, gross revenue and active clients*
+## Getting started
 
-![Overdue invoices](screenshots/02_overdue_invoices.png)
-*Query: "Which invoices are overdue?" — the model generates SQL, executes it and returns structured results*
+Clone the repo and set up a virtual environment:
 
-![Monthly revenue](screenshots/03_monthly_revenue.png)
-*Monthly revenue breakdown for 2024 with year-over-year comparison*
-
-![DML protection](screenshots/04_dml_protection.png)
-*The chatbot refuses data modification requests — read-only access enforced via system prompt*
-
-![Function calling code](screenshots/05_function_calling_code.png)
-*Core logic — LLM loop with OpenAI function calling implementation*
-
----
-
-## How it works
-
-The user asks a question in plain English. The model decides to call the `execute_sql_query` function with a generated SQL query. The application executes the query against a local SQLite database and returns the result to the model. The model then formulates a natural language response based on the data.
-
-This pattern is known as function calling - the LLM does not execute code directly, it returns a structured request that the application handles.
-
----
-
-## Features
-
-- Natural language interface - no SQL knowledge required
-- GPT-4o function calling - the model decides when and how to query the database
-- Live metrics dashboard - key business stats visible at a glance
-- Suggested questions in the sidebar for quick exploration
-- Read-only protection - INSERT, UPDATE, DELETE and DROP are blocked
-- Conversation memory - full chat history maintained within the session
-- Clear chat button to reset the conversation
-
----
-
-## Tech stack
-
-| Component | Technology |
-|-----------|-----------|
-| Language | Python 3.13 |
-| LLM | GPT-4o via EPAM DIAL (Azure OpenAI) |
-| AI Integration | OpenAI Python SDK (AzureOpenAI) |
-| Database | SQLite |
-| UI Framework | Streamlit |
-| Configuration | python-dotenv |
-
----
-
-## Project structure
-
-```
-genai-invoice-chatbot/
-├── .env                  # API key
-├── .gitignore
-├── chatbot.py            # Main Streamlit application
-├── create_db.py          # Database creation and seeding script
-├── invoices.db           # SQLite database (generated locally)
-├── screenshots/
-│   ├── 01_dashboard_metrics.png
-│   ├── 02_overdue_invoices.png
-│   ├── 03_monthly_revenue.png
-│   ├── 04_dml_protection.png
-│   └── 05_function_calling_code.png
-└── README.md
-```
-
----
-
-## Database schema
-
-```sql
-customers (id, name, nip, email, city, country)
-
-invoices (id, number, customer_id, issue_date, due_date, status)
-         -- status: 'paid', 'unpaid', 'overdue'
-
-invoice_items (id, invoice_id, description, quantity, unit_price, vat_rate)
-              -- net_amount   = quantity * unit_price
-              -- gross_amount = quantity * unit_price * (1 + vat_rate)
-```
-
-The database contains 5 customers, 15 invoices spanning 2024 and 2025, and services such as IT Consulting, Data Analysis, ML Model Development, Python Training and Data Engineering.
-
----
-
-## Setup and run
-
-**1. Clone the repository**
 ```bash
 git clone https://github.com/zielu2021/genai-invoice-chatbot.git
 cd genai-invoice-chatbot
-```
-
-**2. Create a virtual environment**
-```bash
 python -m venv venv
 venv\Scripts\activate      # Windows
 source venv/bin/activate   # macOS/Linux
 ```
 
-**3. Install dependencies**
+Install the dependencies:
+
 ```bash
 pip install openai python-dotenv streamlit
 ```
 
-**4. Configure the API key**
+Create a `.env` file with your API key:
 
-Create a `.env` file in the project root:
 ```
 AZURE_OPENAI_API_KEY=your-api-key-here
 ```
 
-**5. Create the database**
+Set up the database and run the app:
+
 ```bash
 python create_db.py
-```
-
-**6. Run the application**
-```bash
 streamlit run chatbot.py
 ```
 
-Open your browser at `http://localhost:8501`
+Open `http://localhost:8501` in your browser.
 
----
+## How the database is structured
 
-## Example questions
+The database has a few related tables that model a typical invoicing workflow:
 
-| Question | What it demonstrates |
-|----------|---------------------|
-| What is my total revenue? | Aggregation across joined tables |
-| Which invoices are overdue? | Filtered query by status |
-| Show revenue by customer | GROUP BY with JOIN |
-| Monthly revenue in 2024 | Date-based aggregation |
-| Compare February across years | Year-over-year analysis |
-| How much does John Smith owe me? | Customer-specific filtering |
+**customers** holds client information - name, tax ID, email, phone, city, and country. I have 12 sample customers across Poland, Germany, and Sweden.
 
----
+**invoices** tracks each invoice with its number, customer reference, dates, and status. Status can be paid, unpaid, overdue, draft, or cancelled. There's also fields for payment date, payment method, and notes.
 
-## Safety rules
+**invoice_items** contains the line items for each invoice - description, quantity, unit price, and VAT rate. The gross amount is calculated as quantity times unit price times (1 + VAT rate).
 
-The chatbot only accepts SELECT statements. Any attempt to modify data is rejected with the message: "I am not allowed to modify data." The system prompt is not exposed to the user, and only invoice-related questions are answered.
+**service_categories** groups services into categories like Development, Consulting, Training, and so on.
 
----
+**payments** records when payments come in, including the amount, date, method, and a reference number.
 
-## Course context
+**recurring_templates** stores templates for recurring invoices - useful for retainer clients who get billed monthly or quarterly.
 
-This project demonstrates the following skills from the EPAM GenAI course:
+The sample data includes 35 invoices spanning 2024 through 2026, with 45 line items and 20 payment records.
 
-- OpenAI function calling using the tools parameter and tool_choice="auto"
-- AzureOpenAI SDK integration with EPAM DIAL endpoint
-- Conversational AI with persistent message history
-- LLM-driven SQL generation and execution
-- Streamlit for rapid AI application prototyping
+## Things you can ask
+
+Here are some questions that work well:
+
+- What is my total revenue?
+- Which invoices are overdue?
+- Show revenue by customer
+- How many unpaid invoices do I have?
+- What services did I provide?
+- Monthly revenue in 2024
+- Show payment history
+- Top 5 customers by revenue
+- Compare 2024 vs 2025 revenue
+- How much does John Smith owe me?
+
+The chatbot only runs SELECT queries. If you try to modify data, it politely refuses.
+
+## Tech stack
+
+- Python 3.13
+- GPT-4o via EPAM DIAL (Azure OpenAI)
+- OpenAI Python SDK
+- SQLite for the database
+- Streamlit for the web interface
+- python-dotenv for configuration
+
+## Project structure
+
+```
+genai-invoice-chatbot/
+├── .env                  # API key (not committed)
+├── .gitignore
+├── chatbot.py            # Main Streamlit application
+├── create_db.py          # Database creation and seeding
+├── invoices.db           # SQLite database (generated)
+├── screenshots/          # Demo screenshots
+└── README.md
+```
+
+## Safety considerations
+
+The chatbot only accepts SELECT statements. Any INSERT, UPDATE, DELETE, or DROP attempt gets blocked. The system prompt stays hidden from users, and the AI only answers questions related to invoices and business data.
+
+## Why I built this
+
+This was a learning project for the EPAM GenAI course. It covers function calling with the OpenAI tools parameter, Azure OpenAI integration through EPAM DIAL, maintaining conversation history, and using Streamlit to build AI applications quickly.
+
+The pattern of having an LLM decide when and how to call functions - rather than having it execute code directly - is something I wanted to understand better. This project helped me get hands-on experience with that approach.
