@@ -95,8 +95,30 @@ genai-invoice-chatbot/
 ├── create_db.py          # Database creation and seeding
 ├── invoices.db           # SQLite database (generated)
 ├── screenshots/          # Demo screenshots
+│   ├── 01_dashboard_metrics.png
+│   ├── 02_overdue_invoices.png
+│   ├── 03_monthly_revenue.png
+│   ├── 04_dml_protection.png
+│   └── 05_function_calling_code.png
 └── README.md
 ```
+
+## Screenshots
+
+### Dashboard with metrics
+![Dashboard metrics](screenshots/01_dashboard_metrics.png)
+
+### Overdue invoices query
+![Overdue invoices](screenshots/02_overdue_invoices.png)
+
+### Monthly revenue breakdown
+![Monthly revenue](screenshots/03_monthly_revenue.png)
+
+### DML protection in action
+![DML protection](screenshots/04_dml_protection.png)
+
+### Function calling implementation
+![Function calling code](screenshots/05_function_calling_code.png)
 
 ## Safety considerations
 
